@@ -1,0 +1,29 @@
+# 敏感数据与账号信息 - 绝不提交
+toutiao-profile/
+*.png
+*.jpg
+*.jpeg
+*.gif
+*.webp
+
+# 运行状态与数据（含发布记录/主题策略）
+scheduler_state.json
+toutiao_scheduler_state.json
+stats_data.json
+复盘日志.txt
+*.log
+*.old
+
+# 内容草稿（含具体文章/标题）
+article_*.md
+weitoutiao_*.md
+auto_*.md
+test_*.md
+content_*.md
+
+# 依赖与临时
+node_modules/
+*.tmp
+.DS_Store
+Thumbs.db
+__pycache__/
