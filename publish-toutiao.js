@@ -200,20 +200,21 @@ async function uploadOne(page, imagePath, idx) {
     console.log('⚠️ 微头条配图为非本地路径，请改为本地图片文件:', imagePath);
     return false;
   }
+  // 1. 先 ESC 关闭可能残留的抽屉，再重新打开图片面板（保证每张图都是干净状态）
+  await page.keyboard.press('Escape').catch(() => {});
+  await page.waitForTimeout(800);
   try {
-    const panelOpen = await page.evaluate(() => !!document.querySelector('.byte-drawer-wrapper'));
-    if (!panelOpen) {
-      await page.locator('button:has-text("图片"), span:has-text("图片"), [class*="toolbar"] :text("图片")').first().click({ timeout: 8000 });
-      await page.waitForTimeout(2500);
-    }
+    await page.locator('button:has-text("图片"), span:has-text("图片"), [class*="toolbar"] :text("图片")').first().click({ timeout: 8000 });
+    await page.waitForTimeout(2500);
   } catch (e) {
     console.log('⚠️ 无法打开图片面板:', e.message.slice(0, 100));
     return false;
   }
 
-  // 2. 抽屉内的 input[type=file] 上传（实测存在且可见）
+  // 2. 等待抽屉内 input[type=file] 出现再上传
   try {
     const panelInput = page.locator('.byte-drawer-wrapper input[type="file"]').first();
+    await panelInput.waitFor({ state: 'attached', timeout: 15000 });
     await panelInput.setInputFiles(imagePath);
     console.log('✅ 配图' + (idx + 1) + ' 已上传(面板input):', path.basename(imagePath));
     await page.waitForTimeout(5000); // 等上传完成
