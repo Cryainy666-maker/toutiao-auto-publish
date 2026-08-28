@@ -232,7 +232,12 @@ async function uploadFromLibrary(page, keyword, idx) {
   }
   if (!picked) { console.log('⚠️ 所有候选词均未取到图，跳过该配图(关键词:' + keyword + ')'); return false; }
   console.log('✅ 热点图已下载:', path.basename(picked.dest), '| 用词:', picked.kw, '|', picked.url.slice(0, 70));
-  return await uploadArticleImage(page, picked.dest, idx);
+  const uploaded = await uploadArticleImage(page, picked.dest, idx);
+  // 图片已上传进头条，本地临时图发布后自动删除（避免堆积）
+  if (uploaded) {
+    try { fs.unlinkSync(picked.dest); console.log('🗑️ 已删除本地临时图:', path.basename(picked.dest)); } catch (e) {}
+  }
+  return uploaded;
 }
 
 // 在热点图库搜索单个词并返回第一张可用背景图 URL
