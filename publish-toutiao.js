@@ -411,6 +411,15 @@ async function main() {
 
     // 发布
     await clickPublish(page);
+
+    // 发布后删除本地配图（图已进头条，本地不再保留，防堆积）
+    if (!args.dryRun) {
+      for (const img of args.imageList) {
+        try {
+          if (fs.existsSync(img)) { fs.unlinkSync(img); console.log('🗑️ 已删除本地配图:', path.basename(img)); }
+        } catch (e) {}
+      }
+    }
   } catch (e) {
     console.error('❌ 脚本异常:', e.message);
     try {

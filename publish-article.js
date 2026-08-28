@@ -337,6 +337,16 @@ async function uploadArticleImage(page, imagePath, idx) {
 
   // 5. 关闭抽屉
   await closeDrawer(page);
+
+  // 6. 图片已插入正文，删除本地临时图（防堆积；hotlib 由调用方删除，此处兜底）
+  if (uploaded) {
+    try {
+      if (fs.existsSync(imagePath) && !/^hotlib_/.test(path.basename(imagePath))) {
+        fs.unlinkSync(imagePath);
+        console.log('🗑️ 已删除本地配图:', path.basename(imagePath));
+      }
+    } catch (e) {}
+  }
   return uploaded;
 }
 
