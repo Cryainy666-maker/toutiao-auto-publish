@@ -25,10 +25,8 @@ const { execSync } = require('child_process');
 const STATE_FILE = path.join(__dirname, 'scheduler_state.json');
 
 const RULES = {
-  minIntervalSec: 600, // 10 分钟（任意两条间隔 >10 分钟）
-  perHour: 3,          // 每小时 3 条
-  per12h: 10,          // 每 12 小时 10 条（防限流关键限制）
-  perDay: 24,          // 每天 24 条
+  minIntervalSec: 600, // 相邻两条间隔 > 10 分钟
+  perDay: 24,          // 每天最多 24 条
 };
 
 // ---------- 状态读写 ----------
@@ -114,10 +112,6 @@ function check(now = new Date()) {
     lastGapSec = Math.floor((now - last) / 1000);
   }
 
-  // 滚动 60 分钟内的条数
-  const inHour = ts.filter((t) => now - t < 3600 * 1000).length;
-  // 滚动 12 小时内的条数（防限流关键限制）
-  const in12h = ts.filter((t) => now - t < 12 * 3600 * 1000).length;
   // 自然日条数
   const ds = dayStart(now).getTime();
   const inDay = ts.filter((t) => t.getTime() >= ds).length;
@@ -126,18 +120,6 @@ function check(now = new Date()) {
 
   if (lastGapSec < RULES.minIntervalSec) {
     waitSecs.push(RULES.minIntervalSec - lastGapSec);
-  }
-  if (inHour >= RULES.perHour) {
-    // 最早可发 = 窗口内最旧一条 + 1 小时
-    const oldestInHour = new Date(Math.min(...ts.filter((t) => now - t < 3600 * 1000).map((t) => t.getTime())));
-    const releaseAt = oldestInHour.getTime() + 3600 * 1000;
-    if (releaseAt > now) waitSecs.push(Math.ceil((releaseAt - now) / 1000));
-  }
-  if (in12h >= RULES.per12h) {
-    // 12 小时限流：最早可发 = 12h 窗口内最旧一条 + 12 小时
-    const oldestIn12h = new Date(Math.min(...ts.filter((t) => now - t < 12 * 3600 * 1000).map((t) => t.getTime())));
-    const releaseAt = oldestIn12h.getTime() + 12 * 3600 * 1000;
-    if (releaseAt > now) waitSecs.push(Math.ceil((releaseAt - now) / 1000));
   }
   if (inDay >= RULES.perDay) {
     const releaseAt = ds + 86400 * 1000;
@@ -154,10 +136,6 @@ function check(now = new Date()) {
     nextAt: nextAt.toISOString(),
     stats: {
       lastGapSec: lastGapSec === Infinity ? null : lastGapSec,
-      inHour,
-      perHour: RULES.perHour,
-      in12h,
-      per12h: RULES.per12h,
       inDay,
       perDay: RULES.perDay,
       total: ts.length,
@@ -170,8 +148,6 @@ function fmtStats(r) {
   const s = r.stats;
   return [
     '今日已发: ' + s.inDay + '/' + s.perDay,
-    '近1小时: ' + s.inHour + '/' + s.perHour,
-    '近12小时: ' + s.in12h + '/' + s.per12h,
     '距上次: ' + (s.lastGapSec === null ? '首次' : Math.floor(s.lastGapSec / 60) + '分' + (s.lastGapSec % 60) + '秒'),
     '累计: ' + s.total + ' 条',
   ].join(' | ');
