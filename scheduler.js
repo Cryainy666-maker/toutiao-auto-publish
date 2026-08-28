@@ -25,10 +25,10 @@ const { execSync } = require('child_process');
 const STATE_FILE = path.join(__dirname, 'scheduler_state.json');
 
 const RULES = {
-  minIntervalSec: 300, // 5 分钟
+  minIntervalSec: 600, // 10 分钟（任意两条间隔 >10 分钟）
   perHour: 3,          // 每小时 3 条
   per12h: 10,          // 每 12 小时 10 条（防限流关键限制）
-  perDay: 20,          // 每天 20 条
+  perDay: 24,          // 每天 24 条
 };
 
 // ---------- 状态读写 ----------
