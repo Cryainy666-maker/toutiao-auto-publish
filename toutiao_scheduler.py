@@ -54,9 +54,9 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 log = logging.getLogger("toutiao-scheduler")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-NODE_MODULES = os.path.join(BASE_DIR, "node_modules")  # 已核实路径
+NODE_MODULES = r"C:/Users/33244/.workbuddy/binaries/node/workspace/node_modules"  # 已核实路径
 CONFIG = {
-    "node": "node",  # 通用：node 需在 PATH；或改为你的 node.exe 绝对路径
+    "node": r"C:\Users\33244\.workbuddy\binaries\node\versions\22.22.2\node.exe",
     "node_modules": NODE_MODULES,
     "output_dir": BASE_DIR,
     "state_file": os.path.join(BASE_DIR, "toutiao_scheduler_state.json"),
@@ -231,6 +231,7 @@ def analyze(s):
         log.info("无统计数据，分析跳过（保留旧策略）")
         return s
     agg = {}
+    type_agg = {}  # 按内容类型（微头条/文章）聚合
     for it in items:
         t = extract_topic(it.get("title", ""))
         a = agg.setdefault(t, {"views": 0, "reads": 0, "likes": 0, "comments": 0, "posts": 0})
@@ -239,15 +240,31 @@ def analyze(s):
         a["likes"] += it.get("like", 0)
         a["comments"] += it.get("comment", 0)
         a["posts"] += 1
+        # 类型聚合
+        ty = it.get("type", "unknown")
+        ta = type_agg.setdefault(ty, {"views": 0, "reads": 0, "likes": 0, "comments": 0, "posts": 0})
+        for k in ("views", "reads", "likes", "comments"):
+            ta[k] += it.get(k if k != "view" else "view", 0)
+        ta["posts"] += 1
     # 表现分（互动导向）：阅读0.35 + 曝光0.10 + 点赞0.20 + 评论0.35
     # 注：头条作品管理页不提供"收藏"数据，收藏以高点赞/评论作代理指标
     scores = {}
     for t, a in agg.items():
         posts = max(a["posts"], 1)
         score = (a["reads"] * 0.35 + a["views"] * 0.10 + a["likes"] * 0.20 + a["comments"] * 0.35) / posts
+        engagement = round((a["likes"] + a["comments"]) / max(a["reads"], 1), 2)  # 互动率
         scores[t] = {"views": a["views"], "reads": a["reads"], "likes": a["likes"],
-                     "comments": a["comments"], "posts": a["posts"], "score": round(score, 1)}
+                     "comments": a["comments"], "posts": a["posts"], "score": round(score, 1),
+                     "engagement": engagement}
     s["topic_scores"] = scores
+    # 类型表现对比（含互动率）
+    type_stats = {}
+    for ty, a in type_agg.items():
+        reads = a["reads"]
+        type_stats[ty] = {"posts": a["posts"], "views": a["views"], "reads": reads,
+                          "likes": a["likes"], "comments": a["comments"],
+                          "engagement": round((a["likes"] + a["comments"]) / max(reads, 1), 2)}
+    s["type_stats"] = type_stats
     # 策略：按分数排序，取前 3 为主题方向（低分主题标记避免）
     ranked = sorted(scores.items(), key=lambda kv: kv[1]["score"], reverse=True)
     s["strategy"]["preferred_topics"] = [t for t, _ in ranked[:3]]
@@ -265,14 +282,24 @@ def strategy_report(s):
     lines = ["===== 内容策略报告 ====="]
     if s["strategy"]["last_analysis"]:
         lines.append("最近分析: %s" % s["strategy"]["last_analysis"][:16])
+        # 类型表现对比
+        ts = s.get("type_stats") or {}
+        if ts:
+            lines.append("--- 类型表现对比 ---")
+            name_map = {"article": "文章", "weitoutiao": "微头条", "unknown": "未知"}
+            for ty, v in sorted(ts.items(), key=lambda kv: kv[1]["engagement"], reverse=True):
+                lines.append("  %-6s %s篇 | 阅读%s 曝光%s 赞%s 评%s | 互动率%s" % (
+                    name_map.get(ty, ty), v["posts"], v["reads"], v["views"],
+                    v["likes"], v["comments"], v["engagement"]))
         lines.append("建议优先主题方向: %s" % (", ".join(s["strategy"]["preferred_topics"]) or "暂无（需更多数据）"))
         lines.append("建议避免主题: %s" % (", ".join(s["strategy"]["avoid_topics"]) or "暂无"))
         lines.append("--- 主题得分明细 ---")
         for t, v in sorted(s["topic_scores"].items(), key=lambda kv: kv[1]["score"], reverse=True)[:8]:
-            lines.append("  %-14s 得分%-8s 阅读%s 曝光%s 互动%s+%s (共%s篇)" % (
-                t, v["score"], v["reads"], v["views"], v["likes"], v["comments"], v["posts"]))
+            lines.append("  %-14s 得分%-7s 互动率%-6s 阅读%s 曝光%s 赞%s 评%s (共%s篇)" % (
+                t, v["score"], v.get("engagement", "-"), v["reads"], v["views"],
+                v["likes"], v["comments"], v["posts"]))
     else:
-        lines.append("尚未进行数据分析（运行 analyze 或等待每日 14:00 自动分析）")
+        lines.append("尚未进行数据分析（运行 analyze 或等待每日 0 点自动分析）")
     lines.append("今日已发布: %d / %d" % (s["daily_count"], CONFIG["daily_limit"]))
     lines.append("今日窗口: %d 个，已完成 %d 个" % (
         len(s["windows"]), sum(1 for w in s["windows"] if w["done"])))

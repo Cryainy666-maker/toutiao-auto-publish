@@ -52,7 +52,12 @@ const OUT_FILE = path.join(__dirname, 'stats_data.json');
             const tm = lines[j].match(/(\d{2}-\d{2}\s+\d{2}:\d{2})/);
             if (tm) { time = tm[1]; break; }
           }
-          if (title) results.push({ title, view: parseInt(m[1]), read: parseInt(m[2]), like: parseInt(m[3]), comment: parseInt(m[4]), time });
+          // 类型：数据行/标题附近找"微头条"或"文章"标记
+          let type = 'unknown';
+          const ctx = lines.slice(Math.max(0, i - 2), Math.min(lines.length, i + 8)).join(' ');
+          if (/微头条/.test(ctx)) type = 'weitoutiao';
+          else if (/文章/.test(ctx)) type = 'article';
+          if (title) results.push({ title, type, view: parseInt(m[1]), read: parseInt(m[2]), like: parseInt(m[3]), comment: parseInt(m[4]), time });
         }
       }
       return results.slice(0, 60);
